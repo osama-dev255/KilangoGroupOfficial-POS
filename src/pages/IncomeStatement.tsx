@@ -13,9 +13,10 @@ import { PrintUtils } from "@/utils/printUtils";
 import { 
   getSales, 
   getPurchaseOrders, 
-  getExpenses 
+  getExpenses,
+  getReturns
 } from "@/services/databaseService";
-import { Sale, PurchaseOrder, Expense } from "@/services/databaseService";
+import { Sale, PurchaseOrder, Expense, Return } from "@/services/databaseService";
 
 interface IncomeStatementProps {
   username: string;
@@ -59,14 +60,17 @@ export const IncomeStatement = ({ username, onBack, onLogout }: IncomeStatementP
       setIsLoading(true);
       try {
         // Fetch all necessary data
-        const [sales, purchases, expenses] = await Promise.all([
+        const [sales, purchases, expenses, returns] = await Promise.all([
           getSales(),
           getPurchaseOrders(),
-          getExpenses()
+          getExpenses(),
+          getReturns()
         ]);
 
-        // Calculate revenue (total sales)
-        const revenue = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+        // Calculate revenue (total sales) minus returns
+        const totalSales = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+        const totalReturns = returns.reduce((sum, returnItem) => sum + (returnItem.total_amount || 0), 0);
+        const revenue = totalSales - totalReturns;
 
         // Calculate COGS (cost of goods sold) - based on purchase orders
         const cogs = purchases.reduce((sum, purchase) => sum + (purchase.total_amount || 0), 0);
@@ -191,87 +195,104 @@ export const IncomeStatement = ({ username, onBack, onLogout }: IncomeStatementP
           </div>
         </div>
         
-        <Card className="border border-gray-200 rounded-lg">
+        <Card className="border border-gray-200 rounded-lg shadow-lg">
           <CardContent className="p-8">
-            {/* Header */
-}
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold mb-2">{incomeStatementData.businessName}</h1>
-              <h2 className="text-xl font-semibold mb-2">INCOME STATEMENT</h2>
-              <p className="text-muted-foreground">For the period ended {incomeStatementData.period}</p>
+            {/* Professional Header */}
+            <div className="text-center mb-8 border-b pb-6">
+              <h1 className="text-3xl font-bold mb-2 text-gray-800">{incomeStatementData.businessName}</h1>
+              <h2 className="text-2xl font-semibold mb-3 text-gray-700">CONSOLIDATED INCOME STATEMENT</h2>
+              <p className="text-lg text-muted-foreground">For the Period Ended {incomeStatementData.period}</p>
+              <p className="text-sm text-muted-foreground mt-2">All amounts in Tanzanian Shillings (TZS)</p>
             </div>
             
-            {/* Income Statement Table - Restructured to match specification */}
+            {/* Professional Income Statement Table */}
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4 py-2 border-b">
-                <div className="font-semibold">Section</div>
-                <div className="font-semibold text-right">Description</div>
-                <div className="font-semibold text-right">Amount (TZS)</div>
+              {/* Table Header with Professional Styling */}
+              <div className="grid grid-cols-12 gap-4 py-3 border-b-2 border-gray-300 bg-gray-50 rounded-t-lg">
+                <div className="col-span-5 font-bold text-left pl-4 text-gray-700">Particulars</div>
+                <div className="col-span-4 font-bold text-right pr-4 text-gray-700">Description</div>
+                <div className="col-span-3 font-bold text-right pr-4 text-gray-700">Amount (TZS)</div>
               </div>
               
               {/* Section 1: Revenue (Sales) */}
-              <div className="grid grid-cols-3 gap-4 py-2">
-                <div className="font-semibold">1. Revenue (Sales)</div>
-                <div className="text-right">Total sales to customers</div>
-                <div className="text-right font-semibold">{incomeStatementData.revenue.toLocaleString()}</div>
+              <div className="grid grid-cols-12 gap-4 py-3 border-b">
+                <div className="col-span-5 font-medium pl-4">1. Revenue (Sales)</div>
+                <div className="col-span-4 text-right pr-4 text-gray-600">Total sales to customers - Total sales returns</div>
+                <div className="col-span-3 text-right font-semibold pr-4 text-green-600">{incomeStatementData.revenue.toLocaleString()}</div>
               </div>
               
               {/* Section 2: Cost of Goods Sold (COGS) */}
-              <div className="grid grid-cols-3 gap-4 py-2">
-                <div className="font-semibold">2. Cost of Goods Sold (COGS)</div>
-                <div className="text-right">Cost of items sold — includes purchases, transport, and other direct costs</div>
-                <div className="text-right font-semibold">({incomeStatementData.cogs.toLocaleString()})</div>
+              <div className="grid grid-cols-12 gap-4 py-3 border-b">
+                <div className="col-span-5 font-medium pl-4">2. Cost of Goods Sold (COGS)</div>
+                <div className="col-span-4 text-right pr-4 text-gray-600">Cost of items sold — includes purchases, transport, and other direct costs</div>
+                <div className="col-span-3 text-right font-semibold pr-4 text-red-600">({incomeStatementData.cogs.toLocaleString()})</div>
               </div>
               
               {/* = Gross Profit */}
-              <div className="grid grid-cols-3 gap-4 py-2 border-t border-b">
-                <div className="font-semibold">= Gross Profit</div>
-                <div className="text-right">Revenue − COGS</div>
-                <div className="text-right font-semibold">{incomeStatementData.grossProfit.toLocaleString()}</div>
+              <div className="grid grid-cols-12 gap-4 py-4 border-y-2 border-gray-300 bg-gray-50">
+                <div className="col-span-5 font-bold pl-4">Gross Profit</div>
+                <div className="col-span-4 text-right pr-4 font-medium">Revenue − COGS</div>
+                <div className="col-span-3 text-right font-bold pr-4 text-blue-600 text-lg">{incomeStatementData.grossProfit.toLocaleString()}</div>
               </div>
               
               {/* Section 3: Operating Expenses */}
-              <div className="grid grid-cols-3 gap-4 py-2">
-                <div className="font-semibold">3. Operating Expenses</div>
-                <div className="text-right">Rent, salaries, utilities, admin, etc.</div>
-                <div className="text-right font-semibold">({incomeStatementData.operatingExpenses.toLocaleString()})</div>
+              <div className="grid grid-cols-12 gap-4 py-3 border-b">
+                <div className="col-span-5 font-medium pl-4">3. Operating Expenses</div>
+                <div className="col-span-4 text-right pr-4 text-gray-600">Rent, salaries, utilities, admin, etc.</div>
+                <div className="col-span-3 text-right font-semibold pr-4 text-red-600">({incomeStatementData.operatingExpenses.toLocaleString()})</div>
               </div>
               
               {/* = Operating Profit */}
-              <div className="grid grid-cols-3 gap-4 py-2 border-t border-b">
-                <div className="font-semibold">= Operating Profit</div>
-                <div className="text-right">Gross Profit − Operating Expenses</div>
-                <div className="text-right font-semibold">{incomeStatementData.operatingProfit.toLocaleString()}</div>
+              <div className="grid grid-cols-12 gap-4 py-4 border-y-2 border-gray-300 bg-gray-50">
+                <div className="col-span-5 font-bold pl-4">Operating Profit</div>
+                <div className="col-span-4 text-right pr-4 font-medium">Gross Profit − Operating Expenses</div>
+                <div className="col-span-3 text-right font-bold pr-4 text-blue-600 text-lg">{incomeStatementData.operatingProfit.toLocaleString()}</div>
               </div>
               
               {/* Section 4: Other Income / Expenses */}
-              <div className="grid grid-cols-3 gap-4 py-2">
-                <div className="font-semibold">4. Other Income / Expenses</div>
-                <div className="text-right">Interest, asset sales, etc.</div>
-                <div className="text-right font-semibold">
+              <div className="grid grid-cols-12 gap-4 py-3 border-b">
+                <div className="col-span-5 font-medium pl-4">4. Other Income / Expenses</div>
+                <div className="col-span-4 text-right pr-4 text-gray-600">Interest, asset sales, etc.</div>
+                <div className="col-span-3 text-right font-semibold pr-4 text-purple-600">
                   {incomeStatementData.otherIncomeExpenses >= 0 ? '+' : ''}{incomeStatementData.otherIncomeExpenses.toLocaleString()}
                 </div>
               </div>
               
               {/* Section 5: Tax (Income Tax) */}
-              <div className="grid grid-cols-3 gap-4 py-2">
-                <div className="font-semibold">5. Tax (Income Tax)</div>
-                <div className="text-right">Based on profit before tax</div>
-                <div className="text-right font-semibold">({incomeStatementData.tax.toLocaleString()})</div>
+              <div className="grid grid-cols-12 gap-4 py-3 border-b">
+                <div className="col-span-5 font-medium pl-4">5. Tax (Income Tax)</div>
+                <div className="col-span-4 text-right pr-4 text-gray-600">Based on profit before tax</div>
+                <div className="col-span-3 text-right font-semibold pr-4 text-red-600">({incomeStatementData.tax.toLocaleString()})</div>
               </div>
               
               {/* = Net Profit */}
-              <div className="grid grid-cols-3 gap-4 py-2 font-bold text-lg border-t-2 border-b-2">
-                <div className="font-bold">= Net Profit</div>
-                <div className="text-right">Final profit after all costs and tax</div>
-                <div className="text-right font-bold">{incomeStatementData.netProfit.toLocaleString()}</div>
+              <div className="grid grid-cols-12 gap-4 py-5 border-y-2 border-gray-400 bg-blue-50 rounded-b-lg">
+                <div className="col-span-5 font-extrabold pl-4 text-lg">NET PROFIT</div>
+                <div className="col-span-4 text-right pr-4 font-bold text-lg">Final profit after all costs and tax</div>
+                <div className="col-span-3 text-right font-extrabold pr-4 text-green-700 text-xl">{incomeStatementData.netProfit.toLocaleString()}</div>
               </div>
             </div>
             
-            {/* Footer */}
-            <div className="mt-8 text-center text-sm text-muted-foreground">
-              <p>Prepared on: {new Date().toLocaleDateString()}</p>
-              <p className="mt-1">Confidential - For Internal Use Only</p>
+            {/* Professional Footer */}
+            <div className="mt-10 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="col-span-1">
+                  <p className="font-semibold">Prepared by:</p>
+                  <p className="mt-1 border-t border-gray-300 pt-2 text-gray-600">Authorized Signatory</p>
+                </div>
+                <div className="col-span-1 text-center">
+                  <p className="font-semibold">Reviewed by:</p>
+                  <p className="mt-1 border-t border-gray-300 pt-2 text-gray-600">Finance Manager</p>
+                </div>
+                <div className="col-span-1 text-right">
+                  <p className="font-semibold">Date:</p>
+                  <p className="mt-1 border-t border-gray-300 pt-2 text-gray-600">{new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="mt-6 text-center text-xs text-muted-foreground">
+                <p>CONFIDENTIAL - For Internal Use Only</p>
+                <p className="mt-1">This statement has been prepared in accordance with applicable accounting standards</p>
+              </div>
             </div>
           </CardContent>
         </Card>
